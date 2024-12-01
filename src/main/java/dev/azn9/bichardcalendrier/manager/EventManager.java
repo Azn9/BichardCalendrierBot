@@ -94,6 +94,13 @@ public class EventManager {
     public Mono<Long> createData(User user, TextChannel channel) {
         return this.getUserData(user.getId().asLong())
                 .publishOn(Schedulers.boundedElastic())
+                .mapNotNull(userData -> {
+                    if (userData.getThreadId() == null || userData.getThreadId() == 0) {
+                        return null;
+                    }
+
+                    return userData;
+                })
                 .doOnNext(userData -> {
                     userData.setRegistered(true);
                     this.userDataRegistry.save(userData);
@@ -111,7 +118,13 @@ public class EventManager {
                         .map(Snowflake::asLong)
                         .publishOn(Schedulers.boundedElastic())
                         .doOnNext(threadId -> {
-                            UserData userData = new UserData(user.getId().asLong(), threadId);
+                            UserData userData = this.userDataRegistry.findByUserId(user.getId().asLong());
+                            if (userData == null) {
+                                userData = new UserData(user.getId().asLong(), threadId);
+                            } else {
+                                userData.setThreadId(threadId);
+                            }
+
                             this.userDataRegistry.save(userData);
                         }));
     }
