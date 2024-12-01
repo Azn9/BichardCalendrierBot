@@ -35,7 +35,7 @@ public class UnregisterButtonListener extends DiscordListener<ButtonInteractionE
                         return event.createFollowup("Vous n'êtes pas inscrit").withEphemeral(true);
                     }
 
-                    return eventManager.removeData(userId)
+                    return this.eventManager.removeData(userId)
                             .then(event.createFollowup("Vous avez bien été désinscrit").withEphemeral(true));
                 });
 

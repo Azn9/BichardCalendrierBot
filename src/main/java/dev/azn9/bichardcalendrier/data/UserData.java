@@ -11,6 +11,7 @@ public class UserData {
 
     Long threadId;
     int points = 0;
+    boolean registered = true;
 
     public UserData() {
     }
@@ -42,5 +43,13 @@ public class UserData {
 
     public void setPoints(int points) {
         this.points = points;
+    }
+
+    public boolean isRegistered() {
+        return this.registered;
+    }
+
+    public void setRegistered(boolean registered) {
+        this.registered = registered;
     }
 }

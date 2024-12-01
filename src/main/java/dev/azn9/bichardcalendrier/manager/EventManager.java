@@ -9,7 +9,6 @@ import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.component.ActionRow;
 import discord4j.core.object.component.Button;
 import discord4j.core.object.entity.User;
-import discord4j.core.object.entity.channel.Channel;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.entity.channel.ThreadChannel;
@@ -76,43 +75,45 @@ public class EventManager {
 
     public Mono<UserData> getUserData(long userId) {
         return Mono.fromCallable(() -> this.userDataRegistry.findByUserId(userId))
-                .subscribeOn(EventManager.SCHEDULER)
+                .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofSeconds(5));
     }
 
     public Mono<UserData> getUserDataFromThread(long threadId) {
         return Mono.fromCallable(() -> this.userDataRegistry.findByThreadId(threadId))
-                .subscribeOn(EventManager.SCHEDULER)
+                .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofSeconds(5));
     }
 
     public Mono<Long> getUserThreadId(long userId) {
         return this.getUserData(userId)
+                .filter(UserData::isRegistered)
                 .mapNotNull(UserData::getThreadId);
     }
 
     public Mono<Long> createData(User user, TextChannel channel) {
-        return channel.startPrivateThread(user.getUsername())
-                .withInvitable(false)
-                .flatMap(threadChannel -> {
-                    return threadChannel.join()
-                            .then(threadChannel.addMember(user))
-                            .then(this.createFirstMessage(threadChannel, user))
-                            .thenReturn(threadChannel);
-                })
-                .map(ThreadChannel::getId)
-                .map(Snowflake::asLong)
+        return this.getUserData(user.getId().asLong())
                 .publishOn(Schedulers.boundedElastic())
-                .doOnNext(threadId -> {
-                    UserData userData = this.userDataRegistry.findByUserId(user.getId().asLong());
-                    if (userData == null) {
-                        userData = new UserData(user.getId().asLong(), threadId);
-                    } else {
-                        userData.setThreadId(threadId);
-                    }
-
+                .doOnNext(userData -> {
+                    userData.setRegistered(true);
                     this.userDataRegistry.save(userData);
-                });
+                })
+                .map(UserData::getThreadId)
+                .switchIfEmpty(channel.startPrivateThread(user.getUsername())
+                        .withInvitable(false)
+                        .flatMap(threadChannel -> {
+                            return threadChannel.join()
+                                    .then(threadChannel.addMember(user))
+                                    .then(this.createFirstMessage(threadChannel, user))
+                                    .thenReturn(threadChannel);
+                        })
+                        .map(ThreadChannel::getId)
+                        .map(Snowflake::asLong)
+                        .publishOn(Schedulers.boundedElastic())
+                        .doOnNext(threadId -> {
+                            UserData userData = new UserData(user.getId().asLong(), threadId);
+                            this.userDataRegistry.save(userData);
+                        }));
     }
 
     private Mono<?> createFirstMessage(ThreadChannel threadChannel, User user) {
@@ -143,7 +144,15 @@ public class EventManager {
                                 :sparkles: **Que la chasse aux cases commence !** :sparkles:
                                 """)
                         .color(Color.SUMMER_SKY)
-                        .build());
+                        .build())
+                .then(threadChannel.createMessage(EmbedCreateSpec.builder()
+                                .title("Nouvelle journée !")
+                                .description("Il est l'heure d'ouvrir une nouvelle case ! Penses à réaliser le défi aujourd'hui et à le faire valider dans ce channel !")
+                                .color(Color.MOON_YELLOW)
+                                .build())
+                        .withComponents(ActionRow.of(
+                                Button.primary("opencase", ReactionEmoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
+                        )).withContent("<@%d>".formatted(user.getId().asLong())));
     }
 
     public Mono<Void> switchDay(int newDay) {
@@ -155,6 +164,7 @@ public class EventManager {
 
         return Mono.when(Mono.fromCallable(this.userDataRegistry::findAll)
                         .flatMapMany(Flux::fromIterable)
+                        .filter(UserData::isRegistered)
                         .flatMap(userData -> {
                             return this.discordClient.getChannelById(Snowflake.of(userData.getThreadId()))
                                     .ofType(ThreadChannel.class)
@@ -167,6 +177,10 @@ public class EventManager {
                                                 .withComponents(ActionRow.of(
                                                         Button.primary("opencase", ReactionEmoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
                                                 )).withContent("<@%d>".formatted(userData.getUserId()));
+                                    })
+                                    .onErrorResume(throwable -> {
+                                        EventManager.LOGGER.error(throwable);
+                                        return Mono.empty();
                                     });
                         })
                         .onErrorResume(throwable -> {
@@ -191,13 +205,10 @@ public class EventManager {
     public Mono<Void> removeData(long userId) {
         return this.getUserData(userId)
                 .flatMap(userData -> {
-                    return this.discordClient.getChannelById(Snowflake.of(userData.getThreadId()))
-                            .ofType(ThreadChannel.class)
-                            .flatMap(Channel::delete)
-                            .then(Mono.fromRunnable(() -> {
-                                userData.setThreadId(null);
-                                this.userDataRegistry.save(userData);
-                            }).publishOn(EventManager.SCHEDULER));
+                    return Mono.fromRunnable(() -> {
+                        userData.setRegistered(false);
+                        this.userDataRegistry.save(userData);
+                    }).publishOn(EventManager.SCHEDULER);
                 })
                 .then();
     }

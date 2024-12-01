@@ -20,6 +20,10 @@ public class ForcedayCommandListener extends DiscordListener<ChatInputInteractio
 
     @Override
     public Mono<?> handle(ChatInputInteractionEvent event) {
+        if (!event.getCommandName().equals("forceday")) {
+            return Mono.empty();
+        }
+
         return event.deferReply().withEphemeral(true)
                 .then(event.getInteraction().getMember().map(Mono::just).orElse(Mono.empty()))
                 .filterWhen(member -> {

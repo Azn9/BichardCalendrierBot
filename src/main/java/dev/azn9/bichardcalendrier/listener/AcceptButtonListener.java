@@ -4,6 +4,7 @@ import dev.azn9.bichardcalendrier.manager.EventManager;
 import dev.azn9.bichardcalendrier.registry.UserDataRegistry;
 import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.interaction.ButtonInteractionEvent;
+import discord4j.core.object.MessageReference;
 import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.ThreadChannel;
 import discord4j.core.spec.EmbedCreateSpec;
@@ -58,8 +59,19 @@ public class AcceptButtonListener extends DiscordListener<ButtonInteractionEvent
                                                     .build());
                                 }))
                         .then(event.getInteraction().getMessage().map(message -> {
-                            return message.getReferencedMessage()
-                                    .map(Message::delete)
+                            return message.getMessageReference()
+                                    .filter(messageReference -> {
+                                        return messageReference.getType() == MessageReference.Type.DEFAULT;
+                                    })
+                                    .map(messageReference -> {
+                                        return messageReference.getMessageId()
+                                                .map(snowflake -> {
+                                                    return event.getClient()
+                                                            .getMessageById(messageReference.getChannelId(), snowflake)
+                                                            .flatMap(Message::delete);
+                                                })
+                                                .orElse(Mono.empty());
+                                    })
                                     .orElse(Mono.empty())
                                     .then(message.delete());
                         }).orElse(Mono.empty()))
