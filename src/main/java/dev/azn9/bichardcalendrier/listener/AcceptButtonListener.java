@@ -43,39 +43,53 @@ public class AcceptButtonListener extends DiscordListener<ButtonInteractionEvent
         return event.deferReply().withEphemeral(true)
                 .then(this.eventManager.getUserDataFromThread(threadId)
                         .publishOn(Schedulers.boundedElastic())
-                        .doOnNext(userdata -> {
-                            userdata.setPoints(userdata.getPoints() + 1);
-                            this.userDataRegistry.save(userdata);
-                        })
-                        .then(event.getClient().getChannelById(Snowflake.of(threadId))
-                                .ofType(ThreadChannel.class)
-                                .flatMap(threadChannel -> {
-                                    return threadChannel.createMessage(EmbedCreateSpec.builder()
-                                                    .title("Réponse acceptée !")
-                                                    .color(Color.SEA_GREEN)
-                                                    .build())
-                                            .withMessageReference(MessageReferenceData.builder()
-                                                    .messageId(messageId)
-                                                    .build());
-                                }))
-                        .then(event.getInteraction().getMessage().map(message -> {
-                            return message.getMessageReference()
-                                    .filter(messageReference -> {
-                                        return messageReference.getType() == MessageReference.Type.DEFAULT;
-                                    })
-                                    .map(messageReference -> {
-                                        return messageReference.getMessageId()
-                                                .map(snowflake -> {
-                                                    return event.getClient()
-                                                            .getMessageById(messageReference.getChannelId(), snowflake)
-                                                            .flatMap(Message::delete);
+                        .flatMap(userData -> {
+                            Mono<Void> deleteMessage = event.getInteraction()
+                                    .getMessage()
+                                    .map(message -> {
+                                        return message.getMessageReference()
+                                                .filter(messageReference -> {
+                                                    return messageReference.getType() == MessageReference.Type.DEFAULT;
                                                 })
-                                                .orElse(Mono.empty());
+                                                .map(messageReference -> {
+                                                    return messageReference.getMessageId()
+                                                            .map(snowflake -> {
+                                                                return event.getClient()
+                                                                        .getMessageById(messageReference.getChannelId(), snowflake)
+                                                                        .flatMap(Message::delete);
+                                                            })
+                                                            .orElse(Mono.empty());
+                                                })
+                                                .orElse(Mono.empty())
+                                                .then(message.delete());
+                                    }).orElse(Mono.empty());
+
+                            if (userData.getPoints() >= this.eventManager.getCurrentDay()) {
+                                return event.createFollowup("Ce joueur a déjà eu sa réponse validée pour aujourd'hui !")
+                                        .withEphemeral(true)
+                                        .then(deleteMessage);
+                            }
+
+                            return Mono.just(userData)
+                                    .publishOn(Schedulers.boundedElastic())
+                                    .doOnNext(userdata -> {
+                                        userdata.setPoints(userdata.getPoints() + 1);
+                                        this.userDataRegistry.save(userdata);
                                     })
-                                    .orElse(Mono.empty())
-                                    .then(message.delete());
-                        }).orElse(Mono.empty()))
-                        .then(event.createFollowup("Réponse validée").withEphemeral(true)));
+                                    .then(event.getClient().getChannelById(Snowflake.of(threadId))
+                                            .ofType(ThreadChannel.class)
+                                            .flatMap(threadChannel -> {
+                                                return threadChannel.createMessage(EmbedCreateSpec.builder()
+                                                                .title("Réponse acceptée !")
+                                                                .color(Color.SEA_GREEN)
+                                                                .build())
+                                                        .withMessageReference(MessageReferenceData.builder()
+                                                                .messageId(messageId)
+                                                                .build());
+                                            }))
+                                    .then(deleteMessage)
+                                    .then(event.createFollowup("Réponse validée").withEphemeral(true));
+                        }));
     }
 
 }
