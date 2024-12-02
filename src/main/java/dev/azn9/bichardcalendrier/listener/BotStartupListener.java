@@ -64,7 +64,8 @@ public class BotStartupListener extends DiscordListener<ReadyEvent> {
                     .map(dataList -> {
                         List<String> commands = List.of(
                                 "forceday",
-                                "forcesendcase"
+                                "forcesendcase",
+                                "say"
                         );
                         List<String> missingCommands = new ArrayList<>();
 
@@ -95,6 +96,11 @@ public class BotStartupListener extends DiscordListener<ReadyEvent> {
                             case "forcesendcase" -> ApplicationCommandRequest.builder()
                                     .name("forcesendcase")
                                     .description("Force l'envoi du message")
+                                    .defaultMemberPermissions(PermissionSet.none().getRawValue() + "")
+                                    .build();
+                            case "say" -> ApplicationCommandRequest.builder()
+                                    .name("say")
+                                    .description("Envoie un message avec le bot")
                                     .defaultMemberPermissions(PermissionSet.none().getRawValue() + "")
                                     .build();
                             default -> null;
