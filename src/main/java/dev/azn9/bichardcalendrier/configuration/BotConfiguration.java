@@ -18,6 +18,9 @@ public class BotConfiguration {
     @Value("${gestionChannelId}")
     private long gestionChannelId;
 
+    @Value("${playerRoleId}")
+    private long playerRoleId;
+
     public String getToken() {
         return this.token;
     }
@@ -32,5 +35,9 @@ public class BotConfiguration {
 
     public long getGestionChannelId() {
         return this.gestionChannelId;
+    }
+
+    public long getPlayerRoleId() {
+        return this.playerRoleId;
     }
 }

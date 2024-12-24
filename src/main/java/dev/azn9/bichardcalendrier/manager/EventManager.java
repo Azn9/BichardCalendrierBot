@@ -22,7 +22,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
@@ -31,19 +30,16 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class EventManager {
 
-    private static final Scheduler SCHEDULER = Schedulers.boundedElastic();
     private static final Logger LOGGER = LogManager.getLogger(EventManager.class);
 
     private final GatewayDiscordClient discordClient;
     private final UserDataRegistry userDataRegistry;
     private final BotConfiguration botConfiguration;
-    private final ScheduledFuture<?> future;
     private int currentDay;
 
     @Autowired
@@ -66,7 +62,7 @@ public class EventManager {
         long nextDayAt8 = duration.getSeconds();
 
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-        this.future = executor.scheduleAtFixedRate(this::run, nextDayAt8, TimeUnit.DAYS.toSeconds(1), TimeUnit.SECONDS);
+        executor.scheduleAtFixedRate(this::run, nextDayAt8, TimeUnit.DAYS.toSeconds(1), TimeUnit.SECONDS);
     }
 
     private void run() {
@@ -126,7 +122,14 @@ public class EventManager {
                             }
 
                             this.userDataRegistry.save(userData);
-                        }));
+                        }))
+                .flatMap(threadId -> {
+                    return user.asMember(Snowflake.of(this.botConfiguration.getGuildId()))
+                            .flatMap(member -> {
+                                return member.addRole(Snowflake.of(this.botConfiguration.getPlayerRoleId()));
+                            })
+                            .thenReturn(threadId);
+                });
     }
 
     private Mono<?> createFirstMessage(ThreadChannel threadChannel, User user) {
@@ -169,14 +172,13 @@ public class EventManager {
     }
 
     public Mono<Void> switchDay(int newDay) {
-        if (newDay < 1 || newDay >= EventData.values().length) {
+        if (newDay < 1 || newDay > EventData.values().length + 1) {
             return Mono.error(new IllegalStateException("Invalid new day (" + newDay + ")"));
         }
 
         this.currentDay = newDay;
 
-        return Mono.when(Mono.fromCallable(this.userDataRegistry::findAll)
-                        .flatMapMany(Flux::fromIterable)
+        return Mono.when(this.getAllUserData()
                         .filter(UserData::isRegistered)
                         .flatMap(userData -> {
                             return this.discordClient.getChannelById(Snowflake.of(userData.getThreadId()))
@@ -211,6 +213,11 @@ public class EventManager {
                 .then();
     }
 
+    public Flux<UserData> getAllUserData() {
+        return Mono.fromCallable(this.userDataRegistry::findAll)
+                .flatMapMany(Flux::fromIterable);
+    }
+
     public int getCurrentDay() {
         return this.currentDay;
     }
@@ -221,8 +228,12 @@ public class EventManager {
                     return Mono.fromRunnable(() -> {
                         userData.setRegistered(false);
                         this.userDataRegistry.save(userData);
-                    }).publishOn(EventManager.SCHEDULER);
+                    }).publishOn(Schedulers.boundedElastic());
                 })
+                .then(this.discordClient.getMemberById(Snowflake.of(this.botConfiguration.getGuildId()), Snowflake.of(userId))
+                        .flatMap(member -> {
+                            return member.removeRole(Snowflake.of(this.botConfiguration.getPlayerRoleId()));
+                        }))
                 .then();
     }
 }

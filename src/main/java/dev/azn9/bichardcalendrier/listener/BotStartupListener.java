@@ -1,6 +1,7 @@
 package dev.azn9.bichardcalendrier.listener;
 
 import dev.azn9.bichardcalendrier.configuration.BotConfiguration;
+import dev.azn9.bichardcalendrier.manager.EventManager;
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.lifecycle.ReadyEvent;
@@ -19,6 +20,9 @@ import discord4j.discordjson.json.ApplicationCommandRequest;
 import discord4j.rest.service.ApplicationService;
 import discord4j.rest.util.Color;
 import discord4j.rest.util.PermissionSet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.reactivestreams.Publisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -30,13 +34,17 @@ import java.util.List;
 @Component
 public class BotStartupListener extends DiscordListener<ReadyEvent> {
 
+    private static final Logger LOGGER = LogManager.getLogger(BotStartupListener.class);
+
     private final BotConfiguration botConfiguration;
+    private final EventManager eventManager;
 
     @Autowired
-    public BotStartupListener(BotConfiguration botConfiguration) {
+    public BotStartupListener(BotConfiguration botConfiguration, EventManager eventManager) {
         super(ReadyEvent.class);
 
         this.botConfiguration = botConfiguration;
+        this.eventManager = eventManager;
     }
 
     @Override
@@ -44,8 +52,38 @@ public class BotStartupListener extends DiscordListener<ReadyEvent> {
         return Mono.when(
                 this.validateMessage(event.getClient()),
                 this.createCommands(event.getClient()),
-                this.setPresence(event.getClient())
+                this.setPresence(event.getClient()),
+                this.updatePlayerRoles(event.getClient())
         );
+    }
+
+    private Publisher<?> updatePlayerRoles(GatewayDiscordClient client) {
+        Snowflake guildId = Snowflake.of(this.botConfiguration.getGuildId());
+        Snowflake roleId = Snowflake.of(this.botConfiguration.getPlayerRoleId());
+
+        return Mono.when(this.eventManager.getAllUserData()
+                .flatMap(userData -> {
+                    return client.getMemberById(guildId, Snowflake.of(userData.getUserId()))
+                            .flatMap(member -> {
+                                if (userData.isRegistered()) {
+                                    if (member.getRoleIds().contains(roleId)) {
+                                        return Mono.empty();
+                                    } else {
+                                        return member.addRole(roleId);
+                                    }
+                                } else {
+                                    if (member.getRoleIds().contains(roleId)) {
+                                        return member.removeRole(roleId);
+                                    } else {
+                                        return Mono.empty();
+                                    }
+                                }
+                            })
+                            .onErrorResume(throwable -> {
+                                BotStartupListener.LOGGER.error(throwable);
+                                return Mono.empty();
+                            });
+                }));
     }
 
     private Mono<?> setPresence(GatewayDiscordClient client) {
