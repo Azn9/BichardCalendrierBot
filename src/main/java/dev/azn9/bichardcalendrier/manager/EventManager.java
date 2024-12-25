@@ -24,6 +24,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.lang.ref.Cleaner;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -57,12 +58,21 @@ public class EventManager {
 
         EventManager.LOGGER.info("Current day: {}", this.currentDay);
 
-        Instant dayAt8 = zonedDateTime.plusDays(zonedDateTime.getHour() > 8 ? 1 : 0).toLocalDate().atStartOfDay(zonedDateTime.getZone()).withHour(8).withMinute(0).withSecond(0).toInstant();
+        Instant dayAt8 = zonedDateTime.plusDays(zonedDateTime.getHour() > 8 ? 1 : 0)
+                .toLocalDate()
+                .atStartOfDay(zonedDateTime.getZone())
+                .withMonth(12)
+                .withHour(8)
+                .withMinute(0)
+                .withSecond(0)
+                .toInstant();
         Duration duration = Duration.between(Instant.now(), dayAt8);
         long nextDayAt8 = duration.getSeconds();
 
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         executor.scheduleAtFixedRate(this::run, nextDayAt8, TimeUnit.DAYS.toSeconds(1), TimeUnit.SECONDS);
+
+        Cleaner.create().register(this, executor::shutdown);
     }
 
     private void run() {
@@ -172,7 +182,7 @@ public class EventManager {
     }
 
     public Mono<Void> switchDay(int newDay) {
-        if (newDay < 1 || newDay > EventData.values().length + 1) {
+        if (newDay < 1 || newDay > EventData.values().length) {
             return Mono.error(new IllegalStateException("Invalid new day (" + newDay + ")"));
         }
 
