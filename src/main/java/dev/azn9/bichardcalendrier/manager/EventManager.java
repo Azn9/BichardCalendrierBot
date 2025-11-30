@@ -8,11 +8,11 @@ import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
 import discord4j.core.object.component.ActionRow;
 import discord4j.core.object.component.Button;
+import discord4j.core.object.emoji.Emoji;
 import discord4j.core.object.entity.User;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.entity.channel.ThreadChannel;
-import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.rest.util.Color;
 import org.apache.logging.log4j.LogManager;
@@ -171,14 +171,18 @@ public class EventManager {
                                 """)
                         .color(Color.SUMMER_SKY)
                         .build())
-                .then(threadChannel.createMessage(EmbedCreateSpec.builder()
-                                .title("Nouvelle journée !")
-                                .description("Il est l'heure d'ouvrir une nouvelle case ! Penses à réaliser le défi aujourd'hui et à le faire valider dans ce channel !")
-                                .color(Color.MOON_YELLOW)
-                                .build())
-                        .withComponents(ActionRow.of(
-                                Button.primary("opencase", ReactionEmoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
-                        )).withContent("<@%d>".formatted(user.getId().asLong())));
+                .then(Mono.just(this.currentDay)
+                        .filter(i -> i >= 1 && i < 25)
+                        .delayUntil(unused -> {
+                            return threadChannel.createMessage(EmbedCreateSpec.builder()
+                                            .title("Nouvelle journée !")
+                                            .description("Il est l'heure d'ouvrir une nouvelle case ! Penses à réaliser le défi aujourd'hui et à le faire valider dans ce channel !")
+                                            .color(Color.MOON_YELLOW)
+                                            .build())
+                                    .withComponents(ActionRow.of(
+                                            Button.primary("opencase", Emoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
+                                    )).withContent("<@%d>".formatted(user.getId().asLong()));
+                        }));
     }
 
     public Mono<Void> switchDay(int newDay) {
@@ -200,7 +204,7 @@ public class EventManager {
                                                         .color(Color.MOON_YELLOW)
                                                         .build())
                                                 .withComponents(ActionRow.of(
-                                                        Button.primary("opencase", ReactionEmoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
+                                                        Button.primary("opencase", Emoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
                                                 )).withContent("<@%d>".formatted(userData.getUserId()));
                                     })
                                     .onErrorResume(throwable -> {

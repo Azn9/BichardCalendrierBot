@@ -21,7 +21,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
-    implementation("com.discord4j:discord4j-core:3.3.0-SNAPSHOT")
+    implementation("com.discord4j:discord4j-core:3.3.0")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     implementation("io.projectreactor:reactor-tools:3.7.0")

@@ -8,12 +8,12 @@ import discord4j.core.event.domain.lifecycle.ReadyEvent;
 import discord4j.core.object.command.ApplicationCommandOption;
 import discord4j.core.object.component.ActionRow;
 import discord4j.core.object.component.Button;
+import discord4j.core.object.emoji.Emoji;
 import discord4j.core.object.entity.User;
 import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.presence.Activity;
 import discord4j.core.object.presence.ClientActivity;
 import discord4j.core.object.presence.ClientPresence;
-import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.discordjson.json.ApplicationCommandOptionData;
 import discord4j.discordjson.json.ApplicationCommandRequest;
@@ -155,7 +155,7 @@ public class BotStartupListener extends DiscordListener<ReadyEvent> {
                 .ofType(TextChannel.class)
                 .flatMap(channel -> {
                     return channel.getPinnedMessages()
-                            .filter(message -> message.getAuthor().map(User::isBot).orElse(false))
+                            .filter(reference -> reference.getMessage().getAuthor().map(User::isBot).orElse(false))
                             .count()
                             .flatMap(aLong -> {
                                 if (aLong == 0) {
@@ -171,25 +171,25 @@ public class BotStartupListener extends DiscordListener<ReadyEvent> {
         return channel.createMessage(EmbedCreateSpec.builder()
                         .title("\uD83C\uDF84 Ho ho ho ! \uD83C\uDF84")
                         .description("""
-                                C’est avec une immense joie que moi, le Père Bichël, viens vous annoncer l’ouverture officielle du Calendrier de l'Avent de Bichard ! 🎅✨
+                                C’est avec une immense joie que moi, le Père Bichël, viens vous annoncer la réouverture du Calendrier de l'Avent de Bichard ! :santa::sparkles:
                                 
-                                Chaque jour à 08h00, du 1er au 24 décembre, une nouvelle case s'ouvrira sur notre calendrier ! À l'intérieur ? Des défis amusants et originaux, et bien sûr... des cadeaux à gagner en fonction de votre assiduité à relever les défis ! 🎁
+                                Chaque jour à 08h00, du 1er au 24 décembre, une nouvelle case s'ouvrira sur notre calendrier ! À l'intérieur ? Des défis amusants et originaux, et bien sûr... des cadeaux à gagner en fonction de votre assiduité à relever les défis ! :gift:
                                 
-                                🎯 Comment ça fonctionne ?
+                                :dart: Comment ça fonctionne ?
                                 
                                 Rejoignez nous chaque jour pour ouvrir une nouvelle case.
-                                Accomplissez les défis proposés et montrez nous vos prouesses ! 💪
-                                Plus vous participez, plus vos chances de recevoir un cadeau magique augmentent ! 🎉
-                                Alors, prêts à relever le défi et à faire briller votre esprit de Noël ? N’attendez plus, l'aventure commence dès demain à 8h ! 🕛
+                                Accomplissez les défis proposés et montrez nous vos prouesses ! :muscle:
+                                Plus vous participez, plus vos chances de recevoir un cadeau magique augmentent ! :tada:
+                                Alors, prêts à relever le défi et à faire briller votre esprit de Noël ? N’attendez plus, l'aventure commence dès demain à 8h ! :clock12:
                                 
-                                🎁 À très vite sous le sapin, mes lutins ! 🎁
+                                :gift: À très vite sous le sapin, mes lutins ! :gift:
                                 
-                                ✨ Père Bichël ✨
+                                :sparkles: Père Bichël :sparkles:
                                 """)
                         .color(Color.DEEP_SEA)
                         .build())
                 .withComponents(ActionRow.of(
-                        Button.success("register", ReactionEmoji.unicode("\uD83C\uDF81"), "S'inscrire !"),
+                        Button.success("register", Emoji.unicode("\uD83C\uDF81"), "S'inscrire !"),
                         Button.danger("unregister", "Se désinscrire")
                 ));
     }

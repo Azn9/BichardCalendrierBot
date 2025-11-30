@@ -6,8 +6,8 @@ import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.interaction.ChatInputInteractionEvent;
 import discord4j.core.object.component.ActionRow;
 import discord4j.core.object.component.Button;
+import discord4j.core.object.emoji.Emoji;
 import discord4j.core.object.entity.channel.ThreadChannel;
-import discord4j.core.object.reaction.ReactionEmoji;
 import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.rest.util.Color;
 import discord4j.rest.util.Permission;
@@ -75,7 +75,7 @@ public class ForcesendcaseCommandListener extends DiscordListener<ChatInputInter
                                                                                     .color(Color.MOON_YELLOW)
                                                                                     .build())
                                                                             .withComponents(ActionRow.of(
-                                                                                    Button.primary("opencase", ReactionEmoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
+                                                                                    Button.primary("opencase", Emoji.unicode("\uD83C\uDF81"), "Ouvrir la case")
                                                                             )).withContent("<@%d>".formatted(userData.getUserId()));
                                                                 }
 
